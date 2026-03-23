@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# claude-adapt post-session hook
+# Auto-generated — do not edit manually. Re-run `claude-adapt sync` to update.
+
+set -euo pipefail
+
+echo "=== claude-adapt post-session sync ==="
+
+{{#if syncOnSessionEnd}}
+# ── Re-sync CLAUDE.md with current project state ──────────
+echo "Syncing CLAUDE.md..."
+claude-adapt sync{{#if configPath}} --config {{configPath}}{{/if}}
+echo "CLAUDE.md synced."
+{{/if}}
+
+{{#if trackDrift}}
+# ── Detect drift since last sync ──────────────────────────
+echo "Checking for drift..."
+DRIFT_OUTPUT=$(claude-adapt diff 2>&1 || true)
+if [ -n "$DRIFT_OUTPUT" ]; then
+  echo "Drift detected:"
+  echo "$DRIFT_OUTPUT"
+  echo ""
+  echo "Run 'claude-adapt sync' to apply changes, or 'claude-adapt diff' for details."
+else
+  echo "No drift detected — CLAUDE.md is up to date."
+fi
+{{/if}}
+
+{{#if snapshotOnSessionEnd}}
+# ── Snapshot current state ─────────────────────────────────
+echo "Creating session snapshot..."
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+SNAPSHOT_DIR="{{snapshotDir}}"
+mkdir -p "$SNAPSHOT_DIR"
+cp "{{claudeMdPath}}" "$SNAPSHOT_DIR/CLAUDE_${TIMESTAMP}.md"
+echo "Snapshot saved to $SNAPSHOT_DIR/CLAUDE_${TIMESTAMP}.md"
+{{/if}}
+
+{{#if autoCommitClaudeMd}}
+# ── Auto-commit CLAUDE.md if changed ──────────────────────
+if git diff --quiet "{{claudeMdPath}}" 2>/dev/null; then
+  echo "CLAUDE.md unchanged — no commit needed."
+else
+  echo "CLAUDE.md changed — committing update..."
+  git add "{{claudeMdPath}}"
+  git commit -m "chore: sync CLAUDE.md via claude-adapt post-session hook"
+  echo "CLAUDE.md committed."
+fi
+{{/if}}
+
+echo "=== Post-session hook complete ==="
+exit 0

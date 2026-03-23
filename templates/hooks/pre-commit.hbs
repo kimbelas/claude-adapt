@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# claude-adapt pre-commit hook
+# Auto-generated — do not edit manually. Re-run `claude-adapt sync` to update.
+
+set -euo pipefail
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$STAGED_FILES" ]; then
+  echo "No staged files — skipping pre-commit checks."
+  exit 0
+fi
+
+echo "=== claude-adapt pre-commit hook ==="
+
+{{#if formatter}}
+# ── Formatter ──────────────────────────────────────────────
+echo "Running formatter..."
+FORMATTED_FILES=$(echo "$STAGED_FILES" | grep -E '{{formatterFilePattern}}' || true)
+if [ -n "$FORMATTED_FILES" ]; then
+  echo "$FORMATTED_FILES" | xargs {{formatterCommand}}
+  echo "$FORMATTED_FILES" | xargs git add
+  echo "Formatter: done"
+else
+  echo "Formatter: no matching files"
+fi
+{{/if}}
+
+{{#if linter}}
+# ── Linter ─────────────────────────────────────────────────
+echo "Running linter..."
+LINT_FILES=$(echo "$STAGED_FILES" | grep -E '{{linterFilePattern}}' || true)
+if [ -n "$LINT_FILES" ]; then
+  echo "$LINT_FILES" | xargs {{linterCommand}}
+  LINT_EXIT=$?
+  if [ $LINT_EXIT -ne 0 ]; then
+    echo "Linter: FAILED — fix errors before committing."
+    exit 1
+  fi
+  echo "Linter: passed"
+else
+  echo "Linter: no matching files"
+fi
+{{/if}}
+
+{{#if typeChecker}}
+# ── Type checker ───────────────────────────────────────────
+echo "Running type checker..."
+{{typeCheckerCommand}}
+TYPE_EXIT=$?
+if [ $TYPE_EXIT -ne 0 ]; then
+  echo "Type checker: FAILED — fix type errors before committing."
+  exit 1
+fi
+echo "Type checker: passed"
+{{/if}}
+
+{{#if testOnCommit}}
+# ── Tests (commit-scoped) ─────────────────────────────────
+echo "Running related tests..."
+{{testRelatedCommand}}
+TEST_EXIT=$?
+if [ $TEST_EXIT -ne 0 ]; then
+  echo "Tests: FAILED — fix failing tests before committing."
+  exit 1
+fi
+echo "Tests: passed"
+{{/if}}
+
+echo "=== All pre-commit checks passed ==="
+exit 0

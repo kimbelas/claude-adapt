@@ -1,0 +1,35 @@
+{
+  "name": "@built-in/typescript",
+  "displayName": "TypeScript",
+  "version": "1.0.0",
+  "description": "TypeScript conventions and best practices for Claude Code",
+  "author": "claude-adapt",
+  "license": "MIT",
+  "claudeAdaptVersion": "^0.1.0",
+
+  "requires": {
+    "languages": ["typescript"]
+  },
+
+  "provides": {
+    "claudeMd": {
+      "sections": [
+        {
+          "id": "typescript-conventions",
+          "title": "TypeScript Conventions",
+          "content": "sections/conventions.md",
+          "placement": { "after": "code-conventions", "position": "bottom" }
+        }
+      ],
+      "priority": 40
+    }
+  },
+
+  "autoActivate": {
+    "when": [
+      { "type": "language", "value": "typescript" }
+    ]
+  },
+
+  "tags": ["typescript", "ts", "types", "strict-mode"]
+}

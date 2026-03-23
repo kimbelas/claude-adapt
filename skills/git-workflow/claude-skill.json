@@ -1,0 +1,31 @@
+{
+  "name": "@built-in/git-workflow",
+  "displayName": "Git Workflow",
+  "version": "1.0.0",
+  "description": "Git commit conventions and workflow best practices for Claude Code",
+  "author": "claude-adapt",
+  "license": "MIT",
+  "claudeAdaptVersion": "^0.1.0",
+
+  "provides": {
+    "claudeMd": {
+      "sections": [
+        {
+          "id": "commit-conventions",
+          "title": "Commit Conventions",
+          "content": "sections/commit-conventions.md",
+          "placement": { "after": "common-tasks", "position": "bottom" }
+        }
+      ],
+      "priority": 30
+    }
+  },
+
+  "autoActivate": {
+    "when": [
+      { "type": "tool", "value": "git" }
+    ]
+  },
+
+  "tags": ["git", "commits", "workflow", "conventional-commits", "branching"]
+}
