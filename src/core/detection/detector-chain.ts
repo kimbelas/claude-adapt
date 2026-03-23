@@ -96,6 +96,20 @@ export class DetectorChain {
       'src/cli.ts', 'src/cli.js', 'src/server.ts', 'src/server.js',
       'manage.py', 'app.py', 'main.py',
       'artisan', 'config/routes.rb',
+      // Next.js App Router
+      'src/app/page.tsx', 'src/app/page.ts', 'src/app/page.jsx', 'src/app/page.js',
+      'src/app/layout.tsx', 'src/app/layout.ts', 'src/app/layout.jsx', 'src/app/layout.js',
+      'app/page.tsx', 'app/page.ts', 'app/page.jsx', 'app/page.js',
+      'app/layout.tsx', 'app/layout.ts', 'app/layout.jsx', 'app/layout.js',
+      // Next.js Pages Router
+      'src/pages/index.tsx', 'src/pages/index.ts', 'src/pages/index.jsx', 'src/pages/index.js',
+      'src/pages/_app.tsx', 'src/pages/_app.ts', 'src/pages/_app.jsx', 'src/pages/_app.js',
+      'pages/index.tsx', 'pages/index.ts', 'pages/index.jsx', 'pages/index.js',
+      'pages/_app.tsx', 'pages/_app.ts', 'pages/_app.jsx', 'pages/_app.js',
+      // Nuxt
+      'pages/index.vue', 'app.vue',
+      // SvelteKit
+      'src/routes/+page.svelte', 'src/routes/+layout.svelte',
     ];
 
     const found: string[] = [];

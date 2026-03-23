@@ -44,7 +44,10 @@ function makeFileIndex(
     exists: (path: string) => files.has(path),
     glob: (pattern: string) => {
       const regex = new RegExp(
-        pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*'),
+        pattern
+          .replace(/\*\*/g, '{{GLOBSTAR}}')
+          .replace(/\*/g, '[^/]*')
+          .replace(/\{\{GLOBSTAR\}\}/g, '.*'),
       );
       return entries.filter(e => regex.test(e.relativePath));
     },
@@ -475,6 +478,47 @@ describe('ModularityAnalyzer', () => {
 
       expect(signal).toBeDefined();
       expect(signal!.value).toBe(1);
+    });
+
+    it('detects Next.js App Router entry points via exact path', async () => {
+      const entries = [
+        makeFileEntry('src/app/page.tsx'),
+        makeFileEntry('src/app/layout.tsx'),
+        makeFileEntry('src/app/about/page.tsx'),
+      ];
+      const files = new Map([
+        ['src/app/page.tsx', 'export default function Home() {}'],
+        ['src/app/layout.tsx', 'export default function Layout() {}'],
+        ['src/app/about/page.tsx', 'export default function About() {}'],
+      ]);
+      const context = makeContext(files, entries);
+
+      const result = await analyzer.analyze(context);
+      const signal = result.signals.find(s => s.id === 'mod.entrypoints');
+
+      expect(signal).toBeDefined();
+      expect(signal!.value).toBe(1);
+      expect(signal!.score).toBe(1);
+    });
+
+    it('detects Next.js App Router entry points via glob fallback', async () => {
+      // Only nested route files (not in the exact-match list)
+      const entries = [
+        makeFileEntry('src/app/blog/[slug]/page.tsx'),
+        makeFileEntry('src/app/api/hello/route.ts'),
+      ];
+      const files = new Map([
+        ['src/app/blog/[slug]/page.tsx', 'export default function Post() {}'],
+        ['src/app/api/hello/route.ts', 'export function GET() {}'],
+      ]);
+      const context = makeContext(files, entries);
+
+      const result = await analyzer.analyze(context);
+      const signal = result.signals.find(s => s.id === 'mod.entrypoints');
+
+      expect(signal).toBeDefined();
+      expect(signal!.value).toBe(1);
+      expect(signal!.score).toBe(1);
     });
 
     it('scores 0 when no entry points found', async () => {

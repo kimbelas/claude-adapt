@@ -39,8 +39,6 @@ export class FileIndex {
       '**/*.min.js',
       '**/*.min.css',
       '**/*.map',
-      '**/*.lock',
-      '**/package-lock.json',
       ...this.ignorePatterns,
     ];
 
@@ -57,7 +55,21 @@ export class FileIndex {
       try {
         const fileStat = await stat(fullPath);
         if (!fileStat.isFile()) continue;
-        if (fileStat.size > 1_000_000) continue; // Skip files > 1MB
+
+        // Skip content reading for files > 1MB but still register them
+        // so that exists() works (e.g., for lockfile detection)
+        if (fileStat.size > 1_000_000) {
+          const entry: FileEntry = {
+            path: fullPath,
+            relativePath,
+            size: fileStat.size,
+            lines: 0,
+            hash: '',
+            extension: extname(relativePath),
+          };
+          this.files.set(relativePath, entry);
+          continue;
+        }
 
         const content = await readFile(fullPath, 'utf-8');
         const lines = content.split('\n').length;

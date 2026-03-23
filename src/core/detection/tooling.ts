@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export interface ToolingInfo {
@@ -85,6 +85,69 @@ export class ToolingDetector {
       }
     }
 
+    // Check package.json for framework-integrated tooling
+    await this.detectFromPackageJson(rootPath, result);
+
     return result;
+  }
+
+  /**
+   * Detects tools that are configured via package.json rather than standalone
+   * config files. This covers framework-integrated setups like Next.js (which
+   * bundles ESLint via eslint-config-next) and projects that declare lint/format
+   * scripts without a standalone config file.
+   */
+  private async detectFromPackageJson(
+    rootPath: string,
+    result: ToolingInfo,
+  ): Promise<void> {
+    let pkg: Record<string, unknown>;
+    try {
+      pkg = JSON.parse(
+        await readFile(join(rootPath, 'package.json'), 'utf-8'),
+      ) as Record<string, unknown>;
+    } catch {
+      return; // no package.json or parse error
+    }
+
+    const allDeps = {
+      ...(pkg.dependencies as Record<string, string> | undefined),
+      ...(pkg.devDependencies as Record<string, string> | undefined),
+    };
+
+    const scripts = (pkg.scripts ?? {}) as Record<string, string>;
+
+    // --- Linters ---
+    if (!result.linters.includes('ESLint')) {
+      const hasEslintDep = Object.keys(allDeps).some(
+        dep => dep === 'eslint' || dep.startsWith('eslint-config-') || dep.startsWith('@eslint/'),
+      );
+      const hasLintScript = Object.values(scripts).some(
+        cmd => /\beslint\b/.test(cmd) || /\bnext lint\b/.test(cmd),
+      );
+      if (hasEslintDep || hasLintScript) {
+        result.linters.push('ESLint');
+      }
+    }
+
+    if (!result.linters.includes('Biome')) {
+      if (allDeps['@biomejs/biome']) {
+        result.linters.push('Biome');
+      }
+    }
+
+    // --- Formatters ---
+    if (!result.formatters.includes('Prettier')) {
+      if (allDeps['prettier']) {
+        result.formatters.push('Prettier');
+      }
+    }
+
+    if (!result.formatters.includes('Biome')) {
+      // Biome also serves as a formatter; add if it's in deps and not already listed
+      if (allDeps['@biomejs/biome'] && !result.formatters.includes('Biome')) {
+        result.formatters.push('Biome');
+      }
+    }
   }
 }
