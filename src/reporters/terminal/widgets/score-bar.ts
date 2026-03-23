@@ -21,5 +21,6 @@ export function renderTotalScore(score: number): string {
   else color = chalk.red;
 
   const bar = renderScoreBar(score, 100, 20);
-  return `  Claude Code Readiness Score: ${color(`${score}/100`)}  ${bar}`;
+  const rounded = (Math.round(score * 10) / 10).toFixed(1);
+  return `  Claude Code Readiness Score: ${color(`${rounded}/100`)}  ${bar}`;
 }

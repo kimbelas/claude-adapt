@@ -48,7 +48,7 @@ export class FileIndex {
       cwd: this.rootPath,
       ignore: ignorePatterns,
       onlyFiles: true,
-      dot: false,
+      dot: true,
       absolute: false,
     });
 

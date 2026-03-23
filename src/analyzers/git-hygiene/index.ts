@@ -2,23 +2,57 @@ import { BaseAnalyzer, type SignalDefinition } from '../_base.js';
 import { AnalyzerCategory, type Signal, type Evidence } from '../../types.js';
 import type { ScanContext } from '../../core/context/scan-context.js';
 
-const EXPECTED_GITIGNORE_PATTERNS = [
-  'node_modules',
-  'dist',
-  '.env',
-  'coverage',
-  'build',
-  '.DS_Store',
-  '*.log',
-  '.idea',
-  '.vscode',
-  '__pycache__',
-  '*.pyc',
-  'vendor',
-  '.cache',
-  'tmp',
-  '.next',
-];
+/**
+ * Gitignore patterns grouped by ecosystem.  The analyser picks the "universal"
+ * set plus every ecosystem whose primary language / framework is detected in
+ * the repo, so a Node project is never penalised for missing `__pycache__`.
+ */
+const GITIGNORE_PATTERNS_BY_ECOSYSTEM: Record<string, string[]> = {
+  universal: ['.env', '.DS_Store', '*.log', '.idea', '.vscode', 'coverage', 'tmp'],
+  node: ['node_modules', 'dist', 'build', '.cache'],
+  python: ['__pycache__', '*.pyc', '.venv', 'venv'],
+  php: ['vendor'],
+  next: ['.next'],
+  nuxt: ['.nuxt'],
+};
+
+/**
+ * Map a detected language / framework name (lower-cased) to the ecosystem key
+ * used in GITIGNORE_PATTERNS_BY_ECOSYSTEM.
+ */
+const ECOSYSTEM_TRIGGERS: Record<string, string> = {
+  javascript: 'node',
+  typescript: 'node',
+  python: 'python',
+  php: 'php',
+  next: 'next',
+  'next.js': 'next',
+  nuxt: 'nuxt',
+  'nuxt.js': 'nuxt',
+};
+
+function getExpectedPatterns(profile: {
+  languages: { name: string }[];
+  frameworks: { name: string }[];
+}): string[] {
+  const ecosystems = new Set<string>(['universal']);
+
+  for (const lang of profile.languages) {
+    const key = ECOSYSTEM_TRIGGERS[lang.name.toLowerCase()];
+    if (key) ecosystems.add(key);
+  }
+  for (const fw of profile.frameworks) {
+    const key = ECOSYSTEM_TRIGGERS[fw.name.toLowerCase()];
+    if (key) ecosystems.add(key);
+  }
+
+  const patterns: string[] = [];
+  for (const eco of ecosystems) {
+    const list = GITIGNORE_PATTERNS_BY_ECOSYSTEM[eco];
+    if (list) patterns.push(...list);
+  }
+  return patterns;
+}
 
 const CONVENTIONAL_COMMIT_RE =
   /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+?\))?[!]?:\s/;
@@ -105,10 +139,12 @@ export class GitHygieneAnalyzer extends BaseAnalyzer {
       .map(l => l.trim())
       .filter(l => l && !l.startsWith('#'));
 
+    const expectedPatterns = getExpectedPatterns(context.profile);
+
     let matchedPatterns = 0;
     const missingPatterns: string[] = [];
 
-    for (const expected of EXPECTED_GITIGNORE_PATTERNS) {
+    for (const expected of expectedPatterns) {
       const found = gitignoreLines.some(line => {
         const normalized = line.replace(/^\//, '').replace(/\/\*\*$/, '').replace(/\/$/, '');
         return (
@@ -125,11 +161,13 @@ export class GitHygieneAnalyzer extends BaseAnalyzer {
       }
     }
 
-    const ratio = matchedPatterns / EXPECTED_GITIGNORE_PATTERNS.length;
+    const ratio = expectedPatterns.length > 0
+      ? matchedPatterns / expectedPatterns.length
+      : 1;
 
     evidence.push({
       file: '.gitignore',
-      snippet: `${matchedPatterns}/${EXPECTED_GITIGNORE_PATTERNS.length} common patterns found`,
+      snippet: `${matchedPatterns}/${expectedPatterns.length} common patterns found`,
     });
 
     if (missingPatterns.length > 0 && missingPatterns.length <= 5) {

@@ -19,7 +19,8 @@ export function renderCategoryRow(data: CategoryRowData): string {
   const marker = TIER_MARKERS[data.tier] ?? '\u25CF';
   const bar = renderScoreBar(data.score, data.max, 12);
   const name = data.name.padEnd(20);
-  const scoreStr = `${String(data.score).padStart(2)}/${data.max}`;
+  const roundedScore = (Math.round(data.score * 10) / 10).toFixed(1);
+  const scoreStr = `${roundedScore.padStart(4)}/${data.max}`;
   const summary = data.summary ? chalk.gray(`  ${data.summary}`) : '';
 
   return `  ${marker} ${name} ${bar}  ${scoreStr}${summary}`;
