@@ -2,9 +2,9 @@
 
 # claude-adapt
 
-**Make any codebase Claude Code-ready in one command.**
+**The Claude Code configuration tool for any codebase.**
 
-Score it. Configure it. Extend it. Evolve it.
+Analyze your repo, generate optimized CLAUDE.md and `.claude/` config, install community skill packs, and keep everything evolving — so Claude Code works like a senior team member from day one.
 
 [![NPM](https://img.shields.io/npm/v/claude-adapt?style=for-the-badge&logo=npm&logoColor=white&label=NPM&color=cb0000)](https://www.npmjs.com/package/claude-adapt)
 [![Downloads](https://img.shields.io/npm/dm/claude-adapt?style=for-the-badge&logo=npm&logoColor=white&label=DOWNLOADS&color=cb0000)](https://www.npmjs.com/package/claude-adapt)
@@ -13,47 +13,48 @@ Score it. Configure it. Extend it. Evolve it.
 [![License](https://img.shields.io/badge/LICENSE-MIT-green?style=for-the-badge)](https://github.com/kimbelas/claude-adapt/blob/main/LICENSE)
 [![Node](https://img.shields.io/node/v/claude-adapt?style=for-the-badge&logo=node.js&logoColor=white&label=NODE&color=417e38)](https://nodejs.org)
 
-[Documentation](#commands) | [Installation](#installation) | [Contributing](CONTRIBUTING.md) | [Changelog](#roadmap)
+[Installation](#installation) | [Quick Start](#quick-start) | [Commands](#commands) | [Contributing](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-## Get Started in 30 Seconds
+## Installation
 
 ```bash
-# 1. See how ready your repo is for Claude Code
-npx claude-adapt score
+npm install -g claude-adapt
+```
 
-# 2. Generate optimized .claude/ config based on the results
-npx claude-adapt init
+Or run directly without installing:
+
+```bash
+npx claude-adapt score
+```
+
+**Requirements:** Node.js >= 18
+
+---
+
+## Quick Start
+
+```bash
+# Step 1 — Score your repo's Claude Code readiness (0-100)
+claude-adapt score
+
+# Step 2 — Generate optimized .claude/ config from the results
+claude-adapt init
 ```
 
 That's it. You now have a tailored `CLAUDE.md`, `settings.json`, slash commands, hooks, and MCP config — all generated from static analysis of your codebase.
 
 <details>
-<summary>What happens next (optional)</summary>
+<summary>Optional: extend and evolve</summary>
 
 ```bash
-npx claude-adapt skills add         # Install skill packs for your stack (React, Laravel, etc.)
-npx claude-adapt sync               # After a Claude session, update config with what it learned
-npx claude-adapt enhance            # Find and fix gaps in your existing config
+claude-adapt skills add             # Install skill packs for your stack (React, Laravel, etc.)
+claude-adapt sync                   # After a Claude session, update config with what it learned
+claude-adapt enhance                # Find and fix gaps in your existing config
 ```
-
-</details>
-
-<details>
-<summary>Other install methods</summary>
-
-```bash
-# Install globally
-npm install -g claude-adapt
-
-# As a dev dependency
-npm install -D claude-adapt
-```
-
-**Requirements:** Node.js >= 18
 
 </details>
 
