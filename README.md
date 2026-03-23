@@ -19,19 +19,28 @@ Score it. Configure it. Extend it. Evolve it.
 
 ---
 
-> **How it works:** You point it at a repo. It analyzes 38 signals across 8 categories, produces a Claude Code Readiness Score (0-100), generates optimized `.claude/` configuration, installs community skill packs, and keeps everything evolving as your codebase changes. Five commands, one lifecycle loop.
-
----
-
 ## Get Started in 30 Seconds
 
 ```bash
-npx claude-adapt score              # How ready is this repo?
-npx claude-adapt init               # Generate optimized .claude/ config
-npx claude-adapt skills add         # Install domain-specific skill packs
-npx claude-adapt sync               # Keep config alive across sessions
-npx claude-adapt enhance            # Improve existing config with gap analysis
+# 1. See how ready your repo is for Claude Code
+npx claude-adapt score
+
+# 2. Generate optimized .claude/ config based on the results
+npx claude-adapt init
 ```
+
+That's it. You now have a tailored `CLAUDE.md`, `settings.json`, slash commands, hooks, and MCP config — all generated from static analysis of your codebase.
+
+<details>
+<summary>What happens next (optional)</summary>
+
+```bash
+npx claude-adapt skills add         # Install skill packs for your stack (React, Laravel, etc.)
+npx claude-adapt sync               # After a Claude session, update config with what it learned
+npx claude-adapt enhance            # Find and fix gaps in your existing config
+```
+
+</details>
 
 <details>
 <summary>Other install methods</summary>
