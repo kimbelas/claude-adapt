@@ -17,6 +17,7 @@ import { TerminalReporter } from '../reporters/terminal/index.js';
 import { JsonReporter } from '../reporters/json/index.js';
 import { HistoryStore } from '../history/store.js';
 import { detectTrends } from '../history/trends.js';
+import { FixerEngine, FIXER_CATALOG } from '../fixers/index.js';
 import { DocumentationAnalyzer } from '../analyzers/documentation/index.js';
 import { ModularityAnalyzer } from '../analyzers/modularity/index.js';
 import { ConventionsAnalyzer } from '../analyzers/conventions/index.js';
@@ -26,6 +27,7 @@ import { GitHygieneAnalyzer } from '../analyzers/git-hygiene/index.js';
 import { CiCdAnalyzer } from '../analyzers/cicd/index.js';
 import { DependenciesAnalyzer } from '../analyzers/dependencies/index.js';
 import type { AnalyzerCategory, ScoreRun, Trend } from '../types.js';
+import type { FixContext } from '../fixers/types.js';
 
 interface ScoreOptions {
   format: 'terminal' | 'json';
@@ -37,6 +39,8 @@ interface ScoreOptions {
   quiet: boolean;
   history: boolean;
   cache: boolean;
+  fix: boolean;
+  dryRun: boolean;
 }
 
 export function registerScoreCommand(program: Command): void {
@@ -52,6 +56,8 @@ export function registerScoreCommand(program: Command): void {
     .option('--quiet', 'print the score number only', false)
     .option('--no-history', 'do not persist this run to history')
     .option('--no-cache', 'force a full rescan (ignore content-hash cache)')
+    .option('--fix', 'automatically apply low-effort fixes after scoring', false)
+    .option('--dry-run', 'show what --fix would do without making changes', false)
     .action(async (path: string | undefined, options: ScoreOptions) => {
       const targetPath = resolve(path ?? process.cwd());
       const format = options.ci ? 'json' : options.format;
@@ -141,6 +147,30 @@ export function registerScoreCommand(program: Command): void {
           console.log(Math.round(result.scoreResult.total));
         } else {
           console.log(report);
+        }
+
+        // Auto-fix
+        if (options.fix || options.dryRun) {
+          const fixSpinner = options.quiet ? null : ora('Applying auto-fixes...').start();
+
+          const fixContext: FixContext = {
+            targetPath,
+            profile: result.context.profile,
+            recommendations: result.recommendations.map((r: any) => ({
+              id: r.id,
+              signal: r.signal,
+              title: r.title,
+              gap: r.gap,
+              effort: r.effort,
+            })),
+            dryRun: options.dryRun,
+          };
+
+          const fixerEngine = new FixerEngine(FIXER_CATALOG);
+          const fixResults = await fixerEngine.run(fixContext);
+
+          fixSpinner?.stop();
+          FixerEngine.printSummary(fixResults);
         }
 
         // Write to file if requested
