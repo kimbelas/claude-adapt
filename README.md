@@ -41,11 +41,14 @@ npx claude-adapt score
 # Step 1 — Score your repo's Claude Code readiness (0-100)
 claude-adapt score
 
-# Step 2 — Generate optimized .claude/ config from the results
+# Step 2 — Auto-fix what it can (missing configs, coverage, docs, etc.)
+claude-adapt score --fix
+
+# Step 3 — Generate optimized .claude/ config from the results
 claude-adapt init
 ```
 
-That's it. You now have a tailored `CLAUDE.md`, `settings.json`, slash commands, hooks, and MCP config — all generated from static analysis of your codebase.
+`--fix` automatically creates missing `.editorconfig`, `.prettierrc`, CI pipelines, `ARCHITECTURE.md`, coverage config, and more — 15 auto-fixable improvements in one command. Use `--dry-run` to preview first.
 
 <details>
 <summary>Optional: extend and evolve</summary>
@@ -148,6 +151,8 @@ Performs static analysis across 8 categories, producing a weighted score from 0 
 npx claude-adapt score [path] [options]
 
 Options:
+  --fix                   Auto-fix what it can (15 auto-fixable improvements)
+  --dry-run               Preview fixes without writing
   -f, --format <type>     terminal | json (default: terminal)
   -o, --output <path>     Write report to file
   --ci                    CI mode: exit code = score < threshold
@@ -157,6 +162,25 @@ Options:
   --verbose               Show individual signal details
   --quiet                 Score number only
 ```
+
+#### Auto-Fix
+
+`--fix` automatically applies improvements that don't require human judgment:
+
+| Fix | What It Does |
+|---|---|
+| `.editorconfig` | Creates editor config with project-appropriate defaults |
+| `.prettierrc` | Creates formatter config + installs prettier |
+| `ARCHITECTURE.md` | Creates architecture docs skeleton |
+| `CHANGELOG.md` | Creates changelog template |
+| `.gitignore` | Appends missing patterns for your ecosystem |
+| CI pipeline | Creates GitHub Actions workflow for your stack |
+| `tsconfig.json` | Enables strict mode |
+| Coverage config | Adds coverage settings to vitest/jest config |
+| `@types/*` | Installs missing type definitions |
+| Lockfile | Generates lockfile if missing |
+| Linter config | Creates ESLint config if eslint is installed |
+| Build scripts | Adds missing npm scripts |
 
 ---
 
