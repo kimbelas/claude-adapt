@@ -31,7 +31,7 @@ Or run directly without installing:
 npx claude-adapt score
 ```
 
-**Requirements:** Node.js >= 18
+**Requirements:** Node.js >= 20
 
 ---
 
