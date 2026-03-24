@@ -8,8 +8,26 @@
 
 import { readFileSync } from 'node:fs';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+
+// ---------------------------------------------------------------------------
+// Security helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate that a relative path does not escape the base directory.
+ * Prevents directory traversal attacks from skill manifest paths.
+ */
+function validatePath(basePath: string, relativePath: string): string {
+  const resolved = resolve(basePath, relativePath);
+  if (!resolved.startsWith(resolve(basePath))) {
+    throw new Error(
+      `Path traversal detected: "${relativePath}" escapes base directory "${basePath}"`,
+    );
+  }
+  return resolved;
+}
 
 import { ClaudeMdMerger } from './mergers/claude-md-merger.js';
 import { SettingsMerger } from './mergers/settings-merger.js';
@@ -143,9 +161,11 @@ export class MergeOrchestrator {
           skill.provides.commands,
           skill.name,
           (filePath: string) => {
-            // Synchronous read for command files (they are small)
-            return readFileSync(join(packagePath, filePath), 'utf-8');
+            // Validate path before reading (traversal check also done in merger)
+            const safePath = validatePath(packagePath, filePath);
+            return readFileSync(safePath, 'utf-8');
           },
+          packagePath,
         );
 
         // Write created/updated command files
@@ -179,7 +199,7 @@ export class MergeOrchestrator {
 
           const blocks = await Promise.all(
             hooks.map(async h => ({
-              content: await readFile(join(packagePath, h.file), 'utf-8'),
+              content: await readFile(validatePath(packagePath, h.file), 'utf-8'),
               priority: h.priority,
               merge: h.merge,
             })),
@@ -320,8 +340,13 @@ export class MergeOrchestrator {
       case 'remove-file':
         try {
           await unlink(fullPath);
-        } catch {
-          // File may not exist
+        } catch (err: unknown) {
+          // ENOENT is expected — the file may already be gone
+          if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+            // Ignore: file already removed
+          } else {
+            console.warn(`[merge-orchestrator] Warning: failed to remove ${op.target}: ${err instanceof Error ? err.message : String(err)}`);
+          }
         }
         break;
     }
@@ -364,7 +389,7 @@ export class MergeOrchestrator {
         content.length < 256
       ) {
         try {
-          content = await readFile(join(packagePath, content), 'utf-8');
+          content = await readFile(validatePath(packagePath, content), 'utf-8');
         } catch {
           // Keep the original string as content if the file doesn't exist
         }

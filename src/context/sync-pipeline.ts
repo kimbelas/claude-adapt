@@ -258,18 +258,20 @@ export class SyncPipeline {
    * Detects convention drifts if the store has previous convention data.
    *
    * Full drift detection requires a fresh ConventionSnapshot from a Phase 1
-   * score run. When that data is available, we compare old vs new. Otherwise
-   * we return an empty array.
+   * score run. When that data is available, we compare the previous snapshot
+   * against the current one. If there is no previous snapshot, we have no
+   * baseline, so return empty.
    */
   private detectDrifts(store: ContextStore): ConventionDrift[] {
+    if (!store.previousConventions || !store.previousConventions.timestamp) {
+      return [];
+    }
+
     if (!store.conventions || !store.conventions.timestamp) {
       return [];
     }
 
-    // The drift detector is available for when a fresh snapshot is
-    // provided by the quick score integration. Currently the previous
-    // and current snapshots are the same, so no drift is detected.
-    return this.driftDetector.detect(store.conventions, store.conventions);
+    return this.driftDetector.detect(store.previousConventions, store.conventions);
   }
 
   /**

@@ -20,6 +20,7 @@ export interface ContextStore {
   hotspots: Hotspot[];
   gotchas: Gotcha[];
   conventions: ConventionSnapshot;
+  previousConventions?: ConventionSnapshot;
   sessions: SessionSummary[];
   insights: Insight[];
 }

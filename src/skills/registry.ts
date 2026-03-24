@@ -31,7 +31,7 @@ export interface SkillIndexEntry {
 export interface SearchResult {
   skills: SkillIndexEntry[];
   total: number;
-  source: 'npm' | 'index' | 'mock';
+  source: 'npm' | 'index';
 }
 
 // ---------------------------------------------------------------------------

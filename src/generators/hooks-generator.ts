@@ -41,7 +41,7 @@ function buildPreCommitHook(ctx: GeneratorContext): HookFile | null {
     '',
     'set -e',
     '',
-    'STAGED=$(git diff --cached --name-only --diff-filter=ACMR)',
+    'STAGED=$(git diff --cached --name-only -z --diff-filter=ACMR)',
     '',
     'if [ -z "$STAGED" ]; then',
     '  echo "No staged files."',
@@ -55,7 +55,7 @@ function buildPreCommitHook(ctx: GeneratorContext): HookFile | null {
     lines.push(
       '# Format staged files',
       'echo "Formatting..."',
-      'echo "$STAGED" | grep -E \'\\.(ts|tsx|js|jsx|json|css|scss|md)$\' | xargs npx prettier --write 2>/dev/null || true',
+      'echo -n "$STAGED" | grep -zE \'\\.(ts|tsx|js|jsx|json|css|scss|md)$\' | xargs -0 npx prettier --write 2>/dev/null || true',
       '',
     );
   }
@@ -63,7 +63,7 @@ function buildPreCommitHook(ctx: GeneratorContext): HookFile | null {
     lines.push(
       '# Format Python files',
       'echo "Formatting Python..."',
-      'echo "$STAGED" | grep -E \'\\.py$\' | xargs black 2>/dev/null || true',
+      'echo -n "$STAGED" | grep -zE \'\\.py$\' | xargs -0 black 2>/dev/null || true',
       '',
     );
   }
@@ -73,7 +73,7 @@ function buildPreCommitHook(ctx: GeneratorContext): HookFile | null {
     lines.push(
       '# Lint staged files',
       'echo "Linting..."',
-      'echo "$STAGED" | grep -E \'\\.(ts|tsx|js|jsx)$\' | xargs npx eslint --fix 2>/dev/null || true',
+      'echo -n "$STAGED" | grep -zE \'\\.(ts|tsx|js|jsx)$\' | xargs -0 npx eslint --fix 2>/dev/null || true',
       '',
     );
   }
@@ -81,7 +81,7 @@ function buildPreCommitHook(ctx: GeneratorContext): HookFile | null {
     lines.push(
       '# Lint Python files',
       'echo "Linting Python..."',
-      'echo "$STAGED" | grep -E \'\\.py$\' | xargs ruff check --fix 2>/dev/null || true',
+      'echo -n "$STAGED" | grep -zE \'\\.py$\' | xargs -0 ruff check --fix 2>/dev/null || true',
       '',
     );
   }
@@ -102,7 +102,7 @@ function buildPreCommitHook(ctx: GeneratorContext): HookFile | null {
   // Re-stage formatted files
   lines.push(
     '# Re-stage formatted/fixed files',
-    'echo "$STAGED" | xargs git add 2>/dev/null || true',
+    'echo -n "$STAGED" | xargs -0 git add 2>/dev/null || true',
     '',
     'echo "Pre-commit checks passed."',
   );

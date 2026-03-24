@@ -14,37 +14,11 @@
 import type { DetectedCapability } from '../capabilities/types.js';
 import type { AgentTemplate, CommandFile } from './types.js';
 import { AGENT_CATALOG } from './agent-catalog.js';
+import { hasCapability, getCapability } from '../capabilities/capability-scanner.js';
 
 // ---------------------------------------------------------------------------
 // Capability matching helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Check whether a capability prefix is satisfied by the detected set.
- * "db" matches "db.prisma", "db.drizzle", etc.
- * "db.prisma" matches only "db.prisma".
- */
-function hasCapability(
-  capabilities: DetectedCapability[],
-  prefix: string,
-): boolean {
-  return capabilities.some(
-    (c) => c.rule.id === prefix || c.rule.id.startsWith(prefix + '.'),
-  );
-}
-
-/**
- * Get the highest-confidence capability matching a prefix.
- */
-function getBestMatch(
-  capabilities: DetectedCapability[],
-  prefix: string,
-): DetectedCapability | undefined {
-  // Capabilities are already sorted by confidence descending
-  return capabilities.find(
-    (c) => c.rule.id === prefix || c.rule.id.startsWith(prefix + '.'),
-  );
-}
 
 /**
  * Get all capabilities matching a prefix.
@@ -103,7 +77,7 @@ function resolveSinglePlaceholder(
   if (parts.length === 3 && parts[1] === '*') {
     const prefix = parts[0];
     const commandKey = parts[2];
-    const best = getBestMatch(capabilities, prefix);
+    const best = getCapability(capabilities, prefix);
     if (best) {
       const cmd = best.rule.commands[commandKey];
       if (cmd) return cmd;
@@ -158,14 +132,9 @@ function resolveInstruction(
     return result;
   });
 
-  // If we have iterate results, expand into separate lines
+  // If we have iterate results, the replace callback already joined them
+  // with backtick separators — return the resolved string directly.
   if (iterateResults && iterateResults.length > 0) {
-    // If there's only one result, return the instruction as-is
-    if (iterateResults.length === 1) {
-      return resolved;
-    }
-
-    // Multiple results — create a multi-line instruction
     return resolved;
   }
 

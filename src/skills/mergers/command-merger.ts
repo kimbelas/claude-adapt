@@ -6,7 +6,27 @@
  * and clean removal by skill name.
  */
 
+import { resolve } from 'node:path';
+
 import type { Conflict, MergeOperation, RollbackPlan } from '../types.js';
+
+// ---------------------------------------------------------------------------
+// Security helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate that a relative path does not escape the base directory.
+ * Prevents directory traversal attacks from skill manifest paths.
+ */
+function validatePath(basePath: string, relativePath: string): string {
+  const resolved = resolve(basePath, relativePath);
+  if (!resolved.startsWith(resolve(basePath))) {
+    throw new Error(
+      `Path traversal detected: "${relativePath}" escapes base directory "${basePath}"`,
+    );
+  }
+  return resolved;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,6 +76,7 @@ export class CommandMerger {
     incoming: { name: string; file: string; description: string; overrides?: string }[],
     skillName: string,
     readFile: (path: string) => string,
+    basePath?: string,
   ): CommandMergeResult {
     const created: string[] = [];
     const operations: MergeOperation[] = [];
@@ -94,6 +115,22 @@ export class CommandMerger {
         });
       } else {
         rollbackOps.push({ type: 'remove-file', target: targetPath });
+      }
+
+      // Validate path against directory traversal
+      if (basePath) {
+        try {
+          validatePath(basePath, cmd.file);
+        } catch {
+          conflicts.push({
+            type: 'command',
+            id: cmd.name,
+            existingSource: '',
+            incomingSource: sourceMarker,
+            message: `Path traversal detected in command file "${cmd.file}"`,
+          });
+          continue;
+        }
       }
 
       // Read the command file content

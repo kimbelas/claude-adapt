@@ -7,7 +7,7 @@
 
 import { readFile, writeFile, access, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 import type { FixAction, FixContext, FixResult } from './types.js';
 
@@ -771,21 +771,22 @@ const typeDefinitionsFixer: FixAction = {
       };
     }
 
-    const installCmd =
+    const [installBin, ...installBaseArgs] =
       ctx.profile.packageManager === 'yarn'
-        ? `yarn add -D ${missing.join(' ')}`
+        ? ['yarn', 'add', '-D']
         : ctx.profile.packageManager === 'pnpm'
-          ? `pnpm add -D ${missing.join(' ')}`
-          : `npm install -D ${missing.join(' ')}`;
+          ? ['pnpm', 'add', '-D']
+          : ['npm', 'install', '-D'];
+    const installArgs = [...installBaseArgs, ...missing];
 
     try {
-      execSync(installCmd, { cwd: ctx.targetPath, stdio: 'pipe' });
+      execFileSync(installBin, installArgs, { cwd: ctx.targetPath, stdio: 'pipe' });
     } catch {
       return {
         signalId: this.signalId,
         applied: false,
         description: this.description,
-        skipped: `Failed to run: ${installCmd}`,
+        skipped: `Failed to run: ${installBin} ${installArgs.join(' ')}`,
       };
     }
 
@@ -933,21 +934,21 @@ const lockfileFixer: FixAction = {
       };
     }
 
-    const cmd =
+    const [lockBin, ...lockArgs] =
       ctx.profile.packageManager === 'yarn'
-        ? 'yarn install'
+        ? ['yarn', 'install']
         : ctx.profile.packageManager === 'pnpm'
-          ? 'pnpm install'
-          : 'npm install';
+          ? ['pnpm', 'install']
+          : ['npm', 'install'];
 
     try {
-      execSync(cmd, { cwd: ctx.targetPath, stdio: 'pipe' });
+      execFileSync(lockBin, lockArgs, { cwd: ctx.targetPath, stdio: 'pipe' });
     } catch {
       return {
         signalId: this.signalId,
         applied: false,
         description: this.description,
-        skipped: `Failed to run: ${cmd}`,
+        skipped: `Failed to run: ${lockBin} ${lockArgs.join(' ')}`,
       };
     }
 
