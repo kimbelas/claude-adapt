@@ -586,4 +586,43 @@ export const CAPABILITY_RULES: CapabilityRule[] = [
       clear_log: 'php artisan log:clear',
     },
   },
+
+  // =========================================================================
+  // Project Scripts
+  // =========================================================================
+  {
+    id: 'scripts.dev',
+    label: 'Dev Server',
+    category: 'scripts',
+    detect: { scripts: ['dev', 'start'] },
+    commands: { run: 'npm run dev' },
+  },
+  {
+    id: 'scripts.build',
+    label: 'Build Script',
+    category: 'scripts',
+    detect: { scripts: ['build'] },
+    commands: { run: 'npm run build' },
+  },
+  {
+    id: 'scripts.preview',
+    label: 'Preview Server',
+    category: 'scripts',
+    detect: { scripts: ['preview'] },
+    commands: { run: 'npm run preview' },
+  },
+  {
+    id: 'scripts.seed',
+    label: 'Database Seed Script',
+    category: 'scripts',
+    detect: { scripts: ['seed', 'db:seed'] },
+    commands: { run: 'npm run seed' },
+  },
+  {
+    id: 'scripts.generate',
+    label: 'Code Generation Script',
+    category: 'scripts',
+    detect: { scripts: ['generate', 'codegen'] },
+    commands: { run: 'npm run generate' },
+  },
 ];

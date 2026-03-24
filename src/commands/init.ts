@@ -9,6 +9,7 @@
 
 import { resolve, join, dirname } from 'node:path';
 import { mkdir, writeFile, readFile, chmod } from 'node:fs/promises';
+import { createInterface } from 'node:readline';
 
 import { Command } from 'commander';
 import chalk from 'chalk';
@@ -200,6 +201,124 @@ function showCapabilitySummary(
 }
 
 // ---------------------------------------------------------------------------
+// Interactive agent selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Prompt the user via stdin/stdout using Node's built-in readline.
+ * Returns the trimmed answer string.
+ */
+function prompt(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * In interactive mode, let the user choose which agents to generate.
+ *
+ * Returns the filtered list of agents (may be shorter than the input).
+ * If the user picks "Y" or presses Enter, all agents are returned.
+ * If the user picks "n", an empty array is returned.
+ * If the user picks "select", they can toggle individual agents off.
+ */
+async function selectAgentsInteractively(
+  agents: CommandFile[],
+): Promise<CommandFile[]> {
+  if (agents.length === 0) return agents;
+
+  const answer = await prompt(
+    chalk.bold('  Generate all agents? ') + chalk.dim('(Y/n/select) ') ,
+  );
+
+  const normalised = answer.toLowerCase() || 'y';
+
+  if (normalised === 'y' || normalised === 'yes') {
+    return agents;
+  }
+
+  if (normalised === 'n' || normalised === 'no') {
+    console.log(chalk.yellow('  Skipping all agent generation.'));
+    console.log('');
+    return [];
+  }
+
+  if (normalised === 'select' || normalised === 's') {
+    // Show numbered list with all selected by default
+    const selected = new Set<number>(agents.map((_, i) => i));
+
+    const showList = (): void => {
+      console.log('');
+      console.log(chalk.bold('  Toggle agents (enter numbers to deselect/reselect):'));
+      for (let i = 0; i < agents.length; i++) {
+        const marker = selected.has(i)
+          ? chalk.green('[x]')
+          : chalk.red('[ ]');
+        const name = '/' + agents[i].filename.replace('.md', '');
+        console.log(`    ${marker} ${chalk.bold(String(i + 1))}. ${chalk.cyan(name)}`);
+      }
+      console.log('');
+    };
+
+    showList();
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const input = await prompt(
+        chalk.dim('  Enter number(s) to toggle (e.g. 1 3), or ') +
+          chalk.bold('done') +
+          chalk.dim(' to confirm: '),
+      );
+
+      const lower = input.toLowerCase();
+      if (lower === 'done' || lower === 'd' || lower === '') {
+        break;
+      }
+
+      // Parse space/comma-separated numbers
+      const nums = input
+        .split(/[\s,]+/)
+        .map((s) => parseInt(s, 10))
+        .filter((n) => !isNaN(n) && n >= 1 && n <= agents.length);
+
+      if (nums.length === 0) {
+        console.log(chalk.yellow('  Invalid input. Enter numbers between 1 and ' + agents.length + '.'));
+        continue;
+      }
+
+      for (const n of nums) {
+        const idx = n - 1;
+        if (selected.has(idx)) {
+          selected.delete(idx);
+        } else {
+          selected.add(idx);
+        }
+      }
+
+      showList();
+    }
+
+    const result = agents.filter((_, i) => selected.has(i));
+    if (result.length === 0) {
+      console.log(chalk.yellow('  No agents selected. Skipping agent generation.'));
+    } else {
+      const names = result.map((a) => '/' + a.filename.replace('.md', '')).join(', ');
+      console.log(chalk.green('  Selected: ') + names);
+    }
+    console.log('');
+    return result;
+  }
+
+  // Unrecognised input — default to all
+  console.log(chalk.dim('  Unrecognised choice, generating all agents.'));
+  return agents;
+}
+
+// ---------------------------------------------------------------------------
 // Main action
 // ---------------------------------------------------------------------------
 
@@ -240,6 +359,18 @@ async function initAction(
     if (capabilities.length > 0) {
       showCapabilitySummary(capabilities, agents);
     }
+
+    // --- Step 2.6: Interactive agent selection ---
+    let selectedAgents = agents;
+    if (options.interactive && agents.length > 0) {
+      selectedAgents = await selectAgentsInteractively(agents);
+    }
+    // Build a set of agent filenames the user chose to skip
+    const skippedAgentFiles = new Set(
+      agents
+        .filter((a) => !selectedAgents.includes(a))
+        .map((a) => `.claude/commands/${a.filename}`),
+    );
 
     // --- Step 3: Scoring (optional) ---
     let scoreResult: ScoreResult | null = null;
@@ -305,6 +436,14 @@ async function initAction(
     };
 
     const output = await runGenerators(generatorCtx, orchestratorOptions);
+
+    // Remove agent files the user deselected in interactive mode
+    if (skippedAgentFiles.size > 0) {
+      for (const path of skippedAgentFiles) {
+        output.files.delete(path);
+      }
+    }
+
     spinner.succeed(
       'Generated ' +
         output.files.size +

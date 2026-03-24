@@ -92,6 +92,31 @@ function readDependencies(ctx: GeneratorContext): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Script name reader
+// ---------------------------------------------------------------------------
+
+/**
+ * Read all script names from package.json.
+ *
+ * Returns a Set of script names (exact, case-sensitive).
+ */
+function readScriptNames(ctx: GeneratorContext): Set<string> {
+  const scripts = new Set<string>();
+
+  const packageJson = ctx.fileIndex.read('package.json');
+  if (packageJson) {
+    try {
+      const parsed = JSON.parse(packageJson) as {
+        scripts?: Record<string, string>;
+      };
+      for (const name of Object.keys(parsed.scripts ?? {})) scripts.add(name);
+    } catch { /* malformed */ }
+  }
+
+  return scripts;
+}
+
+// ---------------------------------------------------------------------------
 // Rule evaluator
 // ---------------------------------------------------------------------------
 
@@ -106,6 +131,7 @@ function evaluateRule(
   rule: CapabilityRule,
   ctx: GeneratorContext,
   deps: Set<string>,
+  scriptNames: Set<string>,
 ): EvalResult {
   const criteria = rule.detect;
   let matchCount = 0;
@@ -195,6 +221,18 @@ function evaluateRule(
     }
   }
 
+  // --- scripts (check package.json scripts field) ---
+  if (criteria.scripts && criteria.scripts.length > 0) {
+    totalCriteria++;
+    for (const name of criteria.scripts) {
+      if (scriptNames.has(name)) {
+        matchCount++;
+        evidence.push(`script: ${name}`);
+        break;
+      }
+    }
+  }
+
   // --- contentPatterns (expensive, only check if other criteria already matched) ---
   if (criteria.contentPatterns && criteria.contentPatterns.length > 0) {
     totalCriteria++;
@@ -230,10 +268,11 @@ export function scanCapabilities(
   rules: CapabilityRule[] = CAPABILITY_RULES,
 ): DetectedCapability[] {
   const deps = readDependencies(ctx);
+  const scriptNames = readScriptNames(ctx);
   const detected: DetectedCapability[] = [];
 
   for (const rule of rules) {
-    const result = evaluateRule(rule, ctx, deps);
+    const result = evaluateRule(rule, ctx, deps, scriptNames);
 
     if (result.matched) {
       detected.push({

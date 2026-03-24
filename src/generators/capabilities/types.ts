@@ -26,7 +26,8 @@ export type CapabilityCategory =
   | 'scaffolding'
   | 'monitoring'
   | 'documentation'
-  | 'vcs';
+  | 'vcs'
+  | 'scripts';
 
 // ---------------------------------------------------------------------------
 // Detection criteria
@@ -63,6 +64,9 @@ export interface DetectionCriteria {
     file: string;
     pattern: string;
   }[];
+
+  /** Script names to check in package.json scripts field. */
+  scripts?: string[];
 }
 
 // ---------------------------------------------------------------------------

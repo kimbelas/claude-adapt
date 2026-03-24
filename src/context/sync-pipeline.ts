@@ -13,6 +13,7 @@
 
 import type {
   ArchitecturalDecision,
+  ClaudeMdChange,
   ConventionDrift,
   ContextStore,
   Insight,
@@ -31,6 +32,22 @@ import { InsightEngine } from './insight-engine.js';
 import { ClaudeMdUpdater } from './claude-md-updater.js';
 import { ContextPruner } from './context-pruner.js';
 import { SyncReporter } from './sync-reporter.js';
+
+import { ScoringEngine } from '../core/scoring/engine.js';
+import { ScorePipeline } from '../core/pipeline/pipeline.js';
+import { DetectStage } from '../core/pipeline/stages/detect-stage.js';
+import { IndexStage } from '../core/pipeline/stages/index-stage.js';
+import { AnalyzeStage } from '../core/pipeline/stages/analyze-stage.js';
+import { ScoreStage } from '../core/pipeline/stages/score-stage.js';
+import { DocumentationAnalyzer } from '../analyzers/documentation/index.js';
+import { ModularityAnalyzer } from '../analyzers/modularity/index.js';
+import { ConventionsAnalyzer } from '../analyzers/conventions/index.js';
+import { TypeSafetyAnalyzer } from '../analyzers/type-safety/index.js';
+import { TestCoverageAnalyzer } from '../analyzers/test-coverage/index.js';
+import { GitHygieneAnalyzer } from '../analyzers/git-hygiene/index.js';
+import { CiCdAnalyzer } from '../analyzers/cicd/index.js';
+import { DependenciesAnalyzer } from '../analyzers/dependencies/index.js';
+import type { ScoreResult } from '../types.js';
 
 export interface SyncPipelineResult {
   report: SyncReport;
@@ -127,7 +144,7 @@ export class SyncPipeline {
     // -----------------------------------------------------------------------
     // STAGE 5: CLAUDE.md Update
     // -----------------------------------------------------------------------
-    let claudeMdChanges = report_empty_changes();
+    let claudeMdChanges: ClaudeMdChange[] = [];
     if (!this.options.noClaudeMd) {
       const drifts = this.detectDrifts(store);
       const updateResult = await this.claudeMdUpdater.update(
@@ -147,6 +164,11 @@ export class SyncPipeline {
     let quickScore: SyncReport['quickScore'] | undefined;
     if (!this.options.noScore && !this.options.quick) {
       quickScore = await this.runQuickScore(store);
+
+      // Persist the quick score on the current session summary for future delta comparisons
+      if (quickScore && store.sessions.length > 0) {
+        store.sessions[store.sessions.length - 1].quickScore = quickScore.current;
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -251,19 +273,71 @@ export class SyncPipeline {
   }
 
   /**
-   * Runs a quick score via Phase 1 pipeline (stub — returns undefined
-   * when Phase 1 integration is not wired up).
+   * Runs a quick score via Phase 1 pipeline and compares against
+   * the last stored score to produce a delta.
    */
   private async runQuickScore(
-    _store: ContextStore,
+    store: ContextStore,
   ): Promise<SyncReport['quickScore'] | undefined> {
-    // Quick score integration requires Phase 1 pipeline.
-    // When wired up, this would:
-    //   1. Run ScorePipeline in quick mode
-    //   2. Compare against the last stored score
-    //   3. Return the delta
-    //
-    // For now, return undefined to indicate no score available.
+    try {
+      const scoringEngine = new ScoringEngine();
+      const analyzers = [
+        new DocumentationAnalyzer(),
+        new ModularityAnalyzer(),
+        new ConventionsAnalyzer(),
+        new TypeSafetyAnalyzer(),
+        new TestCoverageAnalyzer(),
+        new GitHygieneAnalyzer(),
+        new CiCdAnalyzer(),
+        new DependenciesAnalyzer(),
+      ];
+
+      const pipeline = new ScorePipeline();
+      pipeline.addStage(new DetectStage() as any);
+      pipeline.addStage(new IndexStage() as any);
+      pipeline.addStage(new AnalyzeStage(analyzers) as any);
+      pipeline.addStage(new ScoreStage(scoringEngine) as any);
+
+      const { output: pipelineOutput } = await pipeline.execute({
+        rootPath: this.rootPath,
+      });
+      const result = pipelineOutput as { scoreResult: ScoreResult };
+      const scoreResult = result.scoreResult;
+
+      // Determine previous score from the most recent session that has one
+      const previousScore = this.findPreviousScore(store);
+
+      // Build per-category deltas
+      const categoryChanges: { category: string; delta: number }[] = [];
+      for (const [category, catScore] of Object.entries(scoreResult.categories)) {
+        categoryChanges.push({
+          category,
+          delta: catScore.normalized,
+        });
+      }
+
+      return {
+        current: scoreResult.total,
+        delta: previousScore !== undefined ? scoreResult.total - previousScore : 0,
+        categoryChanges,
+      };
+    } catch {
+      // If scoring fails, silently skip — it's optional
+      return undefined;
+    }
+  }
+
+  /**
+   * Finds the most recent quick score from previous sessions.
+   */
+  private findPreviousScore(store: ContextStore): number | undefined {
+    // Walk sessions in reverse to find the last one with a quickScore
+    for (let i = store.sessions.length - 1; i >= 0; i--) {
+      const session = store.sessions[i];
+      if (session.quickScore !== undefined) {
+        return session.quickScore;
+      }
+    }
     return undefined;
   }
 
@@ -276,7 +350,7 @@ export class SyncPipeline {
     decisions: ArchitecturalDecision[],
     store: ContextStore,
     insights: Insight[],
-    claudeMdChanges: import('./types.js').ClaudeMdChange[],
+    claudeMdChanges: ClaudeMdChange[],
     quickScore: SyncReport['quickScore'] | undefined,
   ): SyncReport {
     const applied = decisions.filter((d) => d.applied);
@@ -328,11 +402,4 @@ export class SyncPipeline {
       claudeMdChanges: [],
     };
   }
-}
-
-/**
- * Helper to return an empty changes array.
- */
-function report_empty_changes(): import('./types.js').ClaudeMdChange[] {
-  return [];
 }

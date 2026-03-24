@@ -34,6 +34,7 @@ export const AGENT_CATALOG: AgentTemplate[] = [
       { instruction: 'Run database migrations: `{db.*.migrate}`', ifCapability: 'db' },
       { instruction: 'Run type check: `{build.typescript.check}`', ifCapability: 'build.typescript' },
       { instruction: 'Build the project: `{build.*.build}`', ifCapability: 'build' },
+      { instruction: 'Start dev server: `{scripts.*.run}`', ifCapability: 'scripts.dev' },
       { instruction: 'Verify the project runs without errors' },
       { instruction: 'Report any missing environment variables from .env.example', ifCapability: 'pkg' },
     ],
