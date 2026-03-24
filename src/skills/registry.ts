@@ -1,9 +1,8 @@
 /**
  * Skill registry for discovering skills.
  *
- * Searches for claude-skill-* packages. Currently a stub/mock
- * implementation since we cannot hit npm in initial development.
- * Will be replaced with real npm registry queries in a future release.
+ * Searches for claude-skill-* packages on the npm registry.
+ * Uses the npm registry API with the `claude-adapt-skill` keyword.
  */
 
 import type { ActivationCondition } from './types.js';
@@ -36,6 +35,89 @@ export interface SearchResult {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const NPM_SEARCH_URL = 'https://registry.npmjs.org/-/v1/search';
+const NPM_REGISTRY_URL = 'https://registry.npmjs.org';
+const FETCH_TIMEOUT_MS = 5000;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Title-case a string: "foo-bar" → "Foo Bar"
+ */
+function titleCase(str: string): string {
+  return str
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
+ * Derive a display name from a package name.
+ * Strips common prefixes like `claude-skill-` or `@scope/claude-skill-`.
+ */
+function deriveDisplayName(packageName: string): string {
+  const stripped = packageName
+    .replace(/^@[^/]+\//, '') // remove scope
+    .replace(/^claude-skill-/, '');
+  return titleCase(stripped);
+}
+
+/**
+ * Fetch with a timeout.
+ */
+async function fetchWithTimeout(url: string, timeoutMs: number = FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// npm response types (partial, only what we use)
+// ---------------------------------------------------------------------------
+
+interface NpmSearchObject {
+  package: {
+    name: string;
+    version: string;
+    description?: string;
+    keywords?: string[];
+    publisher?: { username: string };
+  };
+}
+
+interface NpmSearchResponse {
+  objects: NpmSearchObject[];
+  total: number;
+}
+
+interface NpmPackageResponse {
+  name: string;
+  description?: string;
+  'dist-tags'?: { latest?: string };
+  versions?: Record<string, NpmVersionInfo>;
+}
+
+interface NpmVersionInfo {
+  name: string;
+  version: string;
+  description?: string;
+  keywords?: string[];
+  'claude-adapt'?: {
+    displayName?: string;
+    tags?: string[];
+    activationConditions?: ActivationCondition[];
+  };
+}
+
+// ---------------------------------------------------------------------------
 // SkillRegistry
 // ---------------------------------------------------------------------------
 
@@ -43,63 +125,83 @@ export class SkillRegistry {
   /**
    * Search for skills matching a query string.
    *
-   * Searches package names, display names, descriptions, and tags.
-   * Currently returns mock results since we cannot query npm
-   * during initial development.
+   * Queries the npm registry for packages with the keyword
+   * `claude-adapt-skill` that also match the user's query.
    */
   async search(query: string): Promise<SearchResult> {
-    const lowerQuery = query.toLowerCase();
+    try {
+      const url = `${NPM_SEARCH_URL}?text=keywords:claude-adapt-skill+${encodeURIComponent(query)}&size=20`;
+      const response = await fetchWithTimeout(url);
 
-    // Filter built-in index by query
-    const matching = BUILT_IN_INDEX.filter(entry => {
-      const searchable = [
-        entry.name,
-        entry.displayName,
-        entry.description,
-        ...entry.tags,
-      ]
-        .join(' ')
-        .toLowerCase();
+      if (!response.ok) {
+        return { skills: [], total: 0, source: 'npm' };
+      }
 
-      return searchable.includes(lowerQuery);
-    });
+      const data = (await response.json()) as NpmSearchResponse;
 
-    return {
-      skills: matching,
-      total: matching.length,
-      source: 'mock',
-    };
+      const skills: SkillIndexEntry[] = data.objects.map(obj => {
+        const pkg = obj.package;
+        const keywords = pkg.keywords ?? [];
+        const tags = keywords.filter(k => k !== 'claude-adapt-skill');
+
+        return {
+          name: pkg.name,
+          displayName: deriveDisplayName(pkg.name),
+          description: pkg.description ?? '',
+          tags,
+          downloads: 0,
+          verified: false,
+          activationConditions: [],
+        };
+      });
+
+      return {
+        skills,
+        total: data.total,
+        source: 'npm',
+      };
+    } catch {
+      // Network error, timeout, or parse error — return empty results
+      return { skills: [], total: 0, source: 'npm' };
+    }
   }
 
   /**
-   * Get detailed info for a specific skill.
+   * Get detailed info for a specific skill from the npm registry.
    */
   async info(name: string): Promise<SkillIndexEntry | null> {
-    return BUILT_IN_INDEX.find(e => e.name === name) ?? null;
+    try {
+      const url = `${NPM_REGISTRY_URL}/${encodeURIComponent(name)}`;
+      const response = await fetchWithTimeout(url);
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = (await response.json()) as NpmPackageResponse;
+      const latestVersion = data['dist-tags']?.latest;
+
+      if (!latestVersion || !data.versions?.[latestVersion]) {
+        return null;
+      }
+
+      const versionInfo = data.versions[latestVersion];
+      const claudeAdapt = versionInfo['claude-adapt'];
+      const keywords = versionInfo.keywords ?? [];
+      const tags = claudeAdapt?.tags ?? keywords.filter(k => k !== 'claude-adapt-skill');
+
+      return {
+        name: data.name,
+        displayName: claudeAdapt?.displayName ?? deriveDisplayName(data.name),
+        description: data.description ?? '',
+        tags,
+        downloads: 0,
+        verified: false,
+        activationConditions: claudeAdapt?.activationConditions ?? [],
+      };
+    } catch {
+      // Network error, timeout, or parse error — return null
+      return null;
+    }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Built-in index (stub data for known built-in skills)
-// ---------------------------------------------------------------------------
-
-const BUILT_IN_INDEX: SkillIndexEntry[] = [
-  {
-    name: '@built-in/typescript',
-    displayName: 'TypeScript',
-    description: 'TypeScript conventions and best practices for Claude Code',
-    tags: ['typescript', 'ts', 'types', 'strict'],
-    downloads: 0,
-    verified: true,
-    activationConditions: [{ type: 'language', value: 'typescript' }],
-  },
-  {
-    name: '@built-in/git-workflow',
-    displayName: 'Git Workflow',
-    description: 'Git commit conventions and workflow best practices',
-    tags: ['git', 'commits', 'workflow', 'conventional-commits'],
-    downloads: 0,
-    verified: true,
-    activationConditions: [{ type: 'tool', value: 'git' }],
-  },
-];

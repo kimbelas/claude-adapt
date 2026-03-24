@@ -29,18 +29,22 @@ export function registerSkillsCommand(program: Command): void {
 
   // -- add ----------------------------------------------------------------
   skills
-    .command('add <path>')
-    .description('Install a skill from a local directory')
+    .command('add <name-or-path>')
+    .description('Install a skill from a local directory or npm package')
     .option('--dry-run', 'Preview changes without writing', false)
     .option('--force', 'Skip compatibility checks', false)
-    .action(async (skillPath: string, options: { dryRun: boolean; force: boolean }) => {
+    .action(async (nameOrPath: string, options: { dryRun: boolean; force: boolean }) => {
       const rootPath = resolve(process.cwd());
-      const fullSkillPath = resolve(skillPath);
+      // If it looks like a local path (starts with . or / or is absolute), resolve it.
+      // Otherwise, pass it as-is so the installer treats it as an npm package name.
+      const skillPathOrPackage = /^[./]/.test(nameOrPath) || /^[A-Za-z]:/.test(nameOrPath) || nameOrPath.includes('\\')
+        ? resolve(nameOrPath)
+        : nameOrPath;
       const spinner = ora('Installing skill...').start();
 
       try {
         const installer = new SkillInstaller();
-        const result = await installer.install(fullSkillPath, rootPath, {
+        const result = await installer.install(skillPathOrPackage, rootPath, {
           dryRun: options.dryRun,
           force: options.force,
         });
