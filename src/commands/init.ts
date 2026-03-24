@@ -33,6 +33,10 @@ import { CiCdAnalyzer } from '../analyzers/cicd/index.js';
 import { DependenciesAnalyzer } from '../analyzers/dependencies/index.js';
 import { runGenerators } from '../generators/generator-orchestrator.js';
 import { getPresetDescription, getPresetNames } from '../generators/presets.js';
+import { scanCapabilities } from '../generators/capabilities/capability-scanner.js';
+import { inferAgents } from '../generators/agents/agent-inferrer.js';
+import type { DetectedCapability } from '../generators/capabilities/types.js';
+import type { CommandFile } from '../generators/agents/types.js';
 import type { Preset, GeneratorContext, OrchestratorOptions } from '../generators/types.js';
 import type { RepoProfile, ScoreResult } from '../types.js';
 
@@ -138,6 +142,64 @@ function summarizeProfile(profile: RepoProfile): string {
 }
 
 // ---------------------------------------------------------------------------
+// Capability summary
+// ---------------------------------------------------------------------------
+
+const CATEGORY_LABELS: Record<string, string> = {
+  'package-management': 'Package Management',
+  testing: 'Testing',
+  linting: 'Linting',
+  formatting: 'Formatting',
+  building: 'Building',
+  deploying: 'Deploying',
+  containerization: 'Containers',
+  database: 'Database',
+  api: 'API',
+  'cli-tool': 'CLI Tools',
+  scaffolding: 'Scaffolding',
+  monitoring: 'Monitoring',
+  documentation: 'Documentation',
+  vcs: 'Version Control',
+};
+
+function showCapabilitySummary(
+  capabilities: DetectedCapability[],
+  agents: CommandFile[],
+): void {
+  console.log('');
+  console.log(chalk.bold('  Capabilities detected:'));
+
+  // Group by category
+  const byCategory = new Map<string, DetectedCapability[]>();
+  for (const cap of capabilities) {
+    const cat = cap.rule.category;
+    if (!byCategory.has(cat)) byCategory.set(cat, []);
+    byCategory.get(cat)!.push(cap);
+  }
+
+  for (const [category, caps] of byCategory) {
+    const label = CATEGORY_LABELS[category] ?? category;
+    const names = caps.map((c) => c.rule.label).join(', ');
+    console.log(chalk.dim('    ' + label.padEnd(20)) + ' ' + names);
+  }
+
+  if (agents.length > 0) {
+    console.log('');
+    console.log(chalk.bold('  Agents to generate:'));
+
+    for (const agent of agents) {
+      // Extract the description from the markdown (second non-empty line after header)
+      const lines = agent.content.split('\n').filter((l) => l.trim());
+      const description = lines.length > 1 ? lines[1] : '';
+      const name = chalk.cyan('/' + agent.filename.replace('.md', ''));
+      console.log('    ' + name.padEnd(24) + chalk.dim(description));
+    }
+  }
+
+  console.log('');
+}
+
+// ---------------------------------------------------------------------------
 // Main action
 // ---------------------------------------------------------------------------
 
@@ -160,6 +222,24 @@ async function initAction(
     await fileIndex.build();
     const gitContext = new GitContext(targetPath);
     spinner.succeed('Indexed ' + fileIndex.getFileCount() + ' files');
+
+    // --- Step 2.5: Capability Discovery ---
+    const generatorCtxForScan: GeneratorContext = {
+      rootPath: targetPath,
+      repoProfile,
+      scoreResult: null,
+      fileIndex,
+      gitContext,
+      preset: options.preset,
+      interactive: options.interactive,
+    };
+
+    const capabilities = scanCapabilities(generatorCtxForScan);
+    const agents = inferAgents(capabilities);
+
+    if (capabilities.length > 0) {
+      showCapabilitySummary(capabilities, agents);
+    }
 
     // --- Step 3: Scoring (optional) ---
     let scoreResult: ScoreResult | null = null;
